@@ -53,10 +53,12 @@ export default function App() {
   }
 
   const saveTool = async () => {
-    const uid = user.uid
-    const data = {...form, qty:parseInt(form.qty)||1, createdAt:serverTimestamp()}
-    if (modal.id) await updateDoc(doc(db,`users/${uid}/tools`,modal.id), data)
-    else await addDoc(collection(db,`users/${uid}/tools`), data)
+    try {
+      const uid = user.uid
+      const data = {...form, qty:parseInt(form.qty)||1, createdAt:serverTimestamp()}
+      if (modal.id) await updateDoc(doc(db,`users/${uid}/tools`,modal.id), data)
+      else await addDoc(collection(db,`users/${uid}/tools`), data)
+    } catch(e) { console.error(e) }
     setModal(null)
   }
 
