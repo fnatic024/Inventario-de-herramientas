@@ -1,9 +1,28 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { auth, db, googleProvider } from './firebase'
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore'
 
 const CATS = ['Medición','Corte','Fijación','Electricidad','Levantamiento','Protección','Otro']
+
+const compressImage = (file) => new Promise(resolve => {
+  const reader = new FileReader()
+  reader.onload = e => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const max = 800
+      let w = img.width, h = img.height
+      if (w > h && w > max) { h = h * max / w; w = max }
+      else if (h > max) { w = w * max / h; h = max }
+      canvas.width = w; canvas.height = h
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/jpeg', 0.6))
+    }
+    img.src = e.target.result
+  }
+  reader.readAsDataURL(file)
+})
 
 export default function App() {
   const [user, setUser] = useState(null)
@@ -14,6 +33,7 @@ export default function App() {
   const [form, setForm] = useState({})
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const photoRef = useRef()
 
   useEffect(() => onAuthStateChanged(auth, u => { setUser(u); setLoading(false) }), [])
 
@@ -54,25 +74,29 @@ export default function App() {
     setModal(null)
   }
 
+  const handlePhoto = async e => {
+    const file = e.target.files[0]
+    if (!file) return
+    const compressed = await compressImage(file)
+    setForm(f => ({...f, photo: compressed}))
+  }
+
   const fmt = d => d ? new Date(d+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}) : '—'
   const filtered = tools.filter(t => t.name?.toLowerCase().includes(search.toLowerCase()))
+  const H='#141619',S2='#1E2128',C='#252930',B='#2E3440',O='#F07D00',G='#3DD68C',R='#FF5B5B',M='#6B7689'
 
-  if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#141619',color:'#F07D00',fontSize:24}}>🔧</div>
+  if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:H,color:O,fontSize:32}}>🔧</div>
 
   if (!user) return (
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:'#141619'}}>
-      <div style={{background:'#1E2128',border:'1px solid #2E3440',borderRadius:16,padding:40,textAlign:'center',maxWidth:360,width:'100%'}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:H}}>
+      <div style={{background:S2,border:`1px solid ${B}`,borderRadius:16,padding:40,textAlign:'center',maxWidth:360,width:'100%'}}>
         <div style={{fontSize:48}}>🔧</div>
         <h1 style={{color:'#E8EBF0',fontSize:28,fontWeight:800,margin:'12px 0 8px'}}>HerraControl</h1>
-        <p style={{color:'#6B7689',fontSize:14,marginBottom:32}}>Inventario de herramientas</p>
-        <button onClick={() => signInWithPopup(auth,googleProvider)} style={{display:'flex',alignItems:'center',gap:10,background:'#fff',color:'#222',border:'none',borderRadius:10,padding:'12px 24px',fontWeight:700,fontSize:15,cursor:'pointer',width:'100%',justifyContent:'center'}}>
-          <b>G</b> Entrar con Google
-        </button>
+        <p style={{color:M,fontSize:14,marginBottom:32}}>Inventario de herramientas</p>
+        <button onClick={() => signInWithPopup(auth,googleProvider)} style={{display:'flex',alignItems:'center',gap:10,background:'#fff',color:'#222',border:'none',borderRadius:10,padding:'12px 24px',fontWeight:700,fontSize:15,cursor:'pointer',width:'100%',justifyContent:'center'}}><b>G</b> Entrar con Google</button>
       </div>
     </div>
   )
-
-  const H = '#141619', S2 = '#1E2128', C = '#252930', B = '#2E3440', O = '#F07D00', G = '#3DD68C', R = '#FF5B5B', M = '#6B7689'
 
   return (
     <div style={{background:H,minHeight:'100vh',fontFamily:'system-ui,sans-serif',color:'#E8EBF0'}}>
@@ -83,12 +107,11 @@ export default function App() {
             <div><div style={{fontWeight:800,fontSize:17}}>HerraControl</div><div style={{fontSize:11,color:M}}>{user.displayName}</div></div>
           </div>
           <div style={{display:'flex',gap:8}}>
-            <button onClick={() => {setForm({name:'',category:'Otro',qty:1,owner:'Mía',lender:'',notes:''});setModal({type:'tool'})}} style={{background:O,border:'none',borderRadius:9,color:'#fff',fontWeight:700,fontSize:14,padding:'9px 16px',cursor:'pointer'}}>+ Agregar</button>
+            <button onClick={() => {setForm({name:'',category:'Otro',qty:1,owner:'Mía',lender:'',notes:'',photo:null});setModal({type:'tool'})}} style={{background:O,border:'none',borderRadius:9,color:'#fff',fontWeight:700,fontSize:14,padding:'9px 16px',cursor:'pointer'}}>+ Agregar</button>
             <button onClick={() => signOut(auth)} style={{background:'none',border:`1px solid ${B}`,borderRadius:9,color:M,fontWeight:600,fontSize:13,padding:'9px 12px',cursor:'pointer'}}>Salir</button>
           </div>
         </div>
       </div>
-
       <div style={{maxWidth:960,margin:'0 auto',padding:'20px 16px'}}>
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}}>
           {[{l:'Herramientas',v:tools.length,c:'#E8EBF0'},{l:'Disponibles',v:tools.reduce((a,t)=>a+avail(t.id),0),c:G},{l:'Fuera',v:tools.reduce((a,t)=>a+(t.qty-avail(t.id)),0),c:O}].map(s=>(
@@ -98,26 +121,24 @@ export default function App() {
             </div>
           ))}
         </div>
-
         <div style={{display:'flex',gap:4,background:S2,padding:4,borderRadius:10,border:`1px solid ${B}`,marginBottom:16}}>
           {[['tools','🔧 Herramientas'],['activity','📋 Actividad']].map(([id,lbl])=>(
             <button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:9,border:'none',borderRadius:8,background:tab===id?O:'none',color:tab===id?'#fff':M,fontWeight:700,fontSize:13,cursor:'pointer'}}>{lbl}</button>
           ))}
         </div>
-
-        {tab==='tools' && <>
+        {tab==='tools'&&<>
           <input style={{width:'100%',background:S2,border:`1px solid ${B}`,borderRadius:8,color:'#E8EBF0',padding:'10px 14px',fontSize:14,outline:'none',marginBottom:16,boxSizing:'border-box'}} placeholder="🔍 Buscar..." value={search} onChange={e=>setSearch(e.target.value)}/>
           {filtered.length===0
-            ? <div style={{textAlign:'center',padding:'60px 0',color:M}}><div style={{fontSize:48}}>🔧</div><p>Sin herramientas aún.</p></div>
-            : <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:12}}>
-                {filtered.map(t => {
-                  const av=avail(t.id), pct=Math.round((av/t.qty)*100)
-                  const fc=av===0?R:av<t.qty?O:G
-                  const tl=logs.filter(l=>l.toolId===t.id)
-                  const lo=tl.filter(l=>l.dir==='out').sort((a,b)=>b.date>a.date?1:-1)[0]
-                  const dy=lo&&av<t.qty?Math.floor((Date.now()-new Date(lo.date+'T12:00:00'))/86400000):null
-                  return (
-                    <div key={t.id} style={{background:C,border:`1px solid ${av<t.qty?O+'55':B}`,borderRadius:12,padding:14,display:'flex',flexDirection:'column',gap:8}}>
+            ?<div style={{textAlign:'center',padding:'60px 0',color:M}}><div style={{fontSize:48}}>🔧</div><p>Sin herramientas aún.</p></div>
+            :<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:12}}>
+              {filtered.map(t=>{
+                const av=avail(t.id),pct=Math.round((av/t.qty)*100),fc=av===0?R:av<t.qty?O:G
+                const lo=logs.filter(l=>l.toolId===t.id&&l.dir==='out').sort((a,b)=>b.date>a.date?1:-1)[0]
+                const dy=lo&&av<t.qty?Math.floor((Date.now()-new Date(lo.date+'T12:00:00'))/86400000):null
+                return(
+                  <div key={t.id} style={{background:C,border:`1px solid ${av<t.qty?O+'55':B}`,borderRadius:12,overflow:'hidden',display:'flex',flexDirection:'column'}}>
+                    {t.photo?<img src={t.photo} alt={t.name} style={{width:'100%',height:120,objectFit:'cover'}}/>:<div style={{width:'100%',height:120,background:H,display:'flex',alignItems:'center',justifyContent:'center',fontSize:40,opacity:.3}}>🔧</div>}
+                    <div style={{padding:14,display:'flex',flexDirection:'column',gap:8}}>
                       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
                         <div style={{fontWeight:700,fontSize:15}}>{t.name}</div>
                         <span style={{background:M+'22',color:M,border:`1px solid ${M}44`,borderRadius:4,padding:'2px 8px',fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>{t.category}</span>
@@ -129,20 +150,20 @@ export default function App() {
                         <span style={{fontSize:12,fontWeight:700,color:fc}}>{av}/{t.qty}</span>
                       </div>
                       {dy!==null&&dy>=3&&<div style={{background:O+'18',border:`1px solid ${O}33`,borderRadius:6,padding:'5px 10px',fontSize:12,color:O}}>⚠️ Fuera hace {dy} días</div>}
-                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr auto auto',gap:6,marginTop:4}}>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr auto auto',gap:6}}>
                         <button disabled={av<=0} onClick={()=>{setForm({person:'',qty:1,date:new Date().toISOString().slice(0,10),notes:''});setModal({type:'move',tool:t,dir:'out'})}} style={{padding:'7px 4px',borderRadius:8,fontSize:11,fontWeight:700,border:`1px solid ${av>0?R+'88':B}`,background:av>0?R+'18':'none',color:av>0?R:B,cursor:av>0?'pointer':'default'}}>↗ Salida</button>
                         <button disabled={av>=t.qty} onClick={()=>{setForm({person:'',qty:1,date:new Date().toISOString().slice(0,10),notes:''});setModal({type:'move',tool:t,dir:'in'})}} style={{padding:'7px 4px',borderRadius:8,fontSize:11,fontWeight:700,border:`1px solid ${av<t.qty?G+'88':B}`,background:av<t.qty?G+'18':'none',color:av<t.qty?G:B,cursor:av<t.qty?'pointer':'default'}}>↙ Entrada</button>
-                        <button onClick={()=>setModal({type:'history',tool:t,tl:logs.filter(l=>l.toolId===t.id)})} style={{padding:'7px 4px',borderRadius:8,fontSize:11,fontWeight:700,border:`1px solid ${B}`,background:'none',color:M,cursor:'pointer'}}>📋</button>
+                        <button onClick={()=>setModal({type:'history',tool:t,tl:logs.filter(l=>l.toolId===t.id)})} style={{padding:'7px 4px',borderRadius:8,fontSize:11,border:`1px solid ${B}`,background:'none',color:M,cursor:'pointer'}}>📋</button>
                         <button onClick={()=>{setForm({...t});setModal({type:'tool',id:t.id})}} style={{padding:'7px 4px',borderRadius:8,fontSize:11,border:`1px solid ${B}`,background:'none',color:M,cursor:'pointer'}}>✏️</button>
                         <button onClick={()=>deleteTool(t.id)} style={{padding:'7px 4px',borderRadius:8,fontSize:11,border:`1px solid ${B}`,background:'none',color:R,cursor:'pointer'}}>🗑</button>
                       </div>
                     </div>
-                  )
-                })}
-              </div>
+                  </div>
+                )
+              })}
+            </div>
           }
         </>}
-
         {tab==='activity'&&(
           <div style={{background:S2,border:`1px solid ${B}`,borderRadius:12,overflow:'hidden'}}>
             {logs.length===0?<div style={{textAlign:'center',padding:'50px 0',color:M}}>Sin movimientos aún.</div>
@@ -159,7 +180,6 @@ export default function App() {
           </div>
         )}
       </div>
-
       {modal?.type==='tool'&&(
         <div style={{position:'fixed',inset:0,background:'#000A',zIndex:100,display:'flex',alignItems:'center',justifyContent:'center',padding:16}} onClick={()=>setModal(null)}>
           <div style={{background:S2,border:`1px solid ${B}`,borderRadius:14,width:'100%',maxWidth:500,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
@@ -168,6 +188,14 @@ export default function App() {
               <button onClick={()=>setModal(null)} style={{background:'none',border:'none',color:M,fontSize:18,cursor:'pointer'}}>✕</button>
             </div>
             <div style={{padding:20}}>
+              <input ref={photoRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handlePhoto}/>
+              <div style={{marginBottom:14}}>
+                <label style={{display:'block',fontSize:12,fontWeight:600,color:M,marginBottom:6,textTransform:'uppercase'}}>Foto</label>
+                {form.photo
+                  ?<div style={{position:'relative',marginBottom:8}}><img src={form.photo} style={{width:'100%',height:160,objectFit:'cover',borderRadius:8}}/><button onClick={()=>setForm(f=>({...f,photo:null}))} style={{position:'absolute',top:8,right:8,background:'#000A',border:'none',color:'#fff',borderRadius:6,padding:'4px 8px',cursor:'pointer',fontSize:12}}>Quitar</button></div>
+                  :<button onClick={()=>photoRef.current.click()} style={{width:'100%',padding:16,border:`2px dashed ${B}`,borderRadius:8,background:'none',color:M,cursor:'pointer',fontSize:14}}>📷 Tomar / elegir foto</button>
+                }
+              </div>
               {[['Nombre','name','text','Ej. Taladro'],['Cantidad','qty','number','1'],['Notas','notes','text','Opcional']].map(([lb,k,tp,ph])=>(
                 <div key={k} style={{marginBottom:14}}>
                   <label style={{display:'block',fontSize:12,fontWeight:600,color:M,marginBottom:6,textTransform:'uppercase'}}>{lb}</label>
@@ -202,7 +230,6 @@ export default function App() {
           </div>
         </div>
       )}
-
       {modal?.type==='move'&&(
         <div style={{position:'fixed',inset:0,background:'#000A',zIndex:100,display:'flex',alignItems:'center',justifyContent:'center',padding:16}} onClick={()=>setModal(null)}>
           <div style={{background:S2,border:`1px solid ${B}`,borderRadius:14,width:'100%',maxWidth:440,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
@@ -237,7 +264,6 @@ export default function App() {
           </div>
         </div>
       )}
-
       {modal?.type==='history'&&(
         <div style={{position:'fixed',inset:0,background:'#000A',zIndex:100,display:'flex',alignItems:'center',justifyContent:'center',padding:16}} onClick={()=>setModal(null)}>
           <div style={{background:S2,border:`1px solid ${B}`,borderRadius:14,width:'100%',maxWidth:440,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
