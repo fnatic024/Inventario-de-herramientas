@@ -316,3 +316,10 @@ const S = {
   btnCancel:{ flex:1, padding:'11px', borderRadius:8, border:'1px solid #2E3440', background:'none', color:'#6B7689', cursor:'pointer', fontWeight:600 },
   btnSubmit:{ flex:2, padding:'11px', borderRadius:8, border:'none', background:'#F07D00', color:'#fff', cursor:'pointer', fontWeight:700, fontSize:15 },
 }
+Radius:8, color:'#E8EBF0', padding:'10px 12px', width:'100%', fontSize:14, outline:'none', boxSizing:'border-box' },
+  ownerBtn:{ flex:1, padding:'10px', borderRadius:8, border:'2px solid #2E3440', background:'#252930', color:'#6B7689', fontWeight:700, cursor:'pointer', fontSize:13 },
+  ownerActive:{ borderColor:'#F07D00', background:'#F07D0022', color:'#F07D00' },
+  formActions:{ display:'flex', gap:10, marginTop:8 },
+  btnCancel:{ flex:1, padding:'11px', borderRadius:8, border:'1px solid #2E3440', background:'none', color:'#6B7689', cursor:'pointer', fontWeight:600 },
+  btnSubmit:{ flex:2, padding:'11px', borderRadius:8, border:'none', background:'#F07D00', color:'#fff', cursor:'pointer', fontWeight:700, fontSize:15 },
+}
